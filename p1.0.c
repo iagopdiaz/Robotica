@@ -18,9 +18,13 @@ bool isInhibited(int prio){
 		return true;
 }
 
-void takePrio(int prio){
-	if ((actuando == 0) || (prio < actuando))
+bool takePrio(int prio){
+	if ((actuando == 0) || (prio <= actuando)){
 		actuando = prio;
+		return true;
+	}else{
+		return false;
+	}
 }
 
 void resetPrio(){
@@ -52,55 +56,191 @@ void giro_izq(){
 	setMotorSpeed(motorC, 50);
 }
 
+int calcularVelocidad(int tiempoActual, int tiempoTotal) {
+    int diferenciaMaxima = 15; // Ajusta este valor según la capacidad de giro de tu robot
+    // Calcula un factor que aumenta y luego disminuye, basado en la posición dentro del tiempo total
+    int diferencia = diferenciaMaxima * sin(PI * tiempoActual / tiempoTotal);
+    return diferencia;
+}
+
 task task_escapar() {
 	bool mustAct = false;
+	bool havePrio = false;
 	while (true){
-    semaphoreLock(semaphore);
-    if (bDoesTaskOwnSemaphore(semaphore)) {
-      semaphoreUnlock(semaphore);
+		semaphoreLock(semaphore);
+		if (bDoesTaskOwnSemaphore(semaphore)) {
+			semaphoreUnlock(semaphore);
 
-      if (!isInhibited(prio[1])) {
-      		if (getTouchValue(S1) == 1 || getUSDistance(S4) < 10){
-          	mustAct = true;
-         	}else
-         		mustAct = false;
-					}
-          if (mustAct) {
-          	semaphoreLock(semaphore);
-					  takePrio(prio[1]);
-					  semaphoreUnlock(semaphore);
-					  clearTimer(T1);
-						while(time10[T1] < 80){
-			      	atras();
-			      }
-						resetGyro(gyroSensor);
-						giro_izq();
-						while (abs(getGyroDegrees(gyroSensor)) < 60) {}
+			if (!isInhibited(prio[0])) {
+				if (getTouchValue(S1) == 1 ){
+					mustAct = true;
+				}else
+					mustAct = false;
+
+				if (mustAct) {
+					semaphoreLock(semaphore);
+						havePrio = takePrio(prio[0]);
+						semaphoreUnlock(semaphore);
+						if (havePrio){
+							clearTimer(T1);
+							while(time10[T1] < 80){
+								atras();
+							}
+							resetGyro(gyroSensor);
+							giro_izq();
+							//while (abs(getGyroDegrees(gyroSensor)) < 60) {}
+							semaphoreLock(semaphore);
+							resetPrio();
+							semaphoreUnlock(semaphore);
+						}
+				} else {
+					semaphoreLock(semaphore);
+					resetPrio();
+					semaphoreUnlock(semaphore);
+				}
+			}
+
+		}
+	}
+	abortTimeslice();
+}
+
+task task_luz{
+	int limite = 50;
+	int luz_max = 0;
+	bool mustAct = false;
+	bool havePrio = false;
+
+	while (true){
+		semaphoreLock(semaphore);
+		if (bDoesTaskOwnSemaphore(semaphore)) {
+			semaphoreUnlock(semaphore);
+
+			if (!isInhibited(prio[1])) {
+				/*if (getColorAmbient(S3) > limite){
+					mustAct = true;
+					luz_max = getColorAmbient(S3);
+				}else
+					mustAct = false;*/
+
+				if (mustAct) {
+					semaphoreLock(semaphore);
+					havePrio = takePrio(prio[1]);
+					semaphoreUnlock(semaphore);
+					if (havePrio){
+						clearTimer(T1);
+						while(time10[T1] < 100){
+							giro_izq();
+						}
+						if(getColorAmbient(S3) < luz_max){
+							clearTimer(T1);
+							while(time10[T1] < 200){
+								giro_drch();
+							}
+							if(getColorAmbient(S3) < luz_max)
+								clearTimer(T1);
+								while(time10[T1] < 100){
+									giro_izq();
+								}
+						}
+						clearTimer(T1);
+						while(time10[T1] < 100){
+							recto();
+						}
 						semaphoreLock(semaphore);
 						resetPrio();
 						semaphoreUnlock(semaphore);
-          } else {
-            semaphoreLock(semaphore);
-					  resetPrio();
-					  semaphoreUnlock(semaphore);
-          }
-      }
-    }
+					}
+				} else {
+					semaphoreLock(semaphore);
+					resetPrio();
+					semaphoreUnlock(semaphore);
+				}
+
+			}
+		}
+	}
     abortTimeslice();
 }
 
+task task_pared() {
+	int	umbralDistancia = 20;
+	int tiempoTotal = 500; // Tiempo total de la simulación en milisegundos
+	int pasoTiempo = 50; // Intervalo de tiempo para ajustes de velocidad en milisegundos
+	int tiempo = 0;
+	int velocidadBase = 30; // Velocidad base para ambos motores
+	int diferenciaVelocidad = 0;
+	int v1 = 0;
+	int v2 = 0;
+	bool mustAct = false;
+	bool havePrio = false;
+
+	while (true){
+		semaphoreLock(semaphore);
+		if (bDoesTaskOwnSemaphore(semaphore)) {
+			semaphoreUnlock(semaphore);
+
+			if (!isInhibited(prio[2])) {
+				if (getUSDistance(S4) < umbralDistancia){
+					mustAct = true;
+				}else
+					mustAct = false;
+
+				if (mustAct) {
+					semaphoreLock(semaphore);
+					havePrio = takePrio(prio[2]);
+					semaphoreUnlock(semaphore);
+
+					if (havePrio){
+						tiempo = 0;
+						setMotorSpeed(motorB,0);
+						setMotorSpeed(motorC,0);
+
+						clearTimer(T1);
+						while(time10[T1] < 70){
+							giro_izq();
+						}
+
+						clearTimer(T2);
+						while(tiempo <= tiempoTotal){
+							if (getUSDistance(S4) < umbralDistancia){
+								break;
+							}
+							diferenciaVelocidad = calcularVelocidad(tiempo, tiempoTotal);
+							v1 = velocidadBase + diferenciaVelocidad;
+							v2 = velocidadBase - diferenciaVelocidad;
+							setMotorSpeed(motorB,v1);
+							setMotorSpeed(motorC,v2);
+
+							tiempo = time10[T2];
+						}
+
+						semaphoreLock(semaphore);
+						resetPrio();
+						semaphoreUnlock(semaphore);
+					}
+				} else {
+					semaphoreLock(semaphore);
+					resetPrio();
+					semaphoreUnlock(semaphore);
+				}
+			}
+		}
+	}
+    abortTimeslice();
+}
 
 task task_recto (){
 	while (true){
-  	semaphoreLock(semaphore);
-    if (bDoesTaskOwnSemaphore(semaphore)) {
-      semaphoreUnlock(semaphore);
-      if (!isInhibited(prio[3])) {
-      	setMotorSpeed(motorB,30);
+		semaphoreLock(semaphore);
+		if (bDoesTaskOwnSemaphore(semaphore)) {
+			semaphoreUnlock(semaphore);
+			if (!isInhibited(prio[3])) {
+				setMotorSpeed(motorB,30);
 				setMotorSpeed(motorC,30);
-      }
-    }
-    abortTimeslice();
+			}
+		}
+		abortTimeslice();
 	}
 }
 
@@ -113,6 +253,8 @@ task main()
 
 	semaphoreInitialize(semaphore);
 	startTask(task_escapar);
+	startTask(task_luz);
+	startTask(task_pared);
 	startTask(task_recto);
 
 
