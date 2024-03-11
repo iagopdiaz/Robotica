@@ -72,7 +72,7 @@ task task_escapar() {
 			semaphoreUnlock(semaphore);
 
 			if (!isInhibited(prio[0])) {
-				if (getTouchValue(S1) == 1 ){
+				if (getTouchValue(S1) == 1 || getUSDistance(S4){
 					mustAct = true;
 				}else
 					mustAct = false;
@@ -117,11 +117,11 @@ task task_luz{
 			semaphoreUnlock(semaphore);
 
 			if (!isInhibited(prio[1])) {
-				/*if (getColorAmbient(S3) > limite){
+				if (getColorAmbient(S3) > limite){
 					mustAct = true;
 					luz_max = getColorAmbient(S3);
 				}else
-					mustAct = false;*/
+					mustAct = false;
 
 				if (mustAct) {
 					semaphoreLock(semaphore);
