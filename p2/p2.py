@@ -1,6 +1,6 @@
 
 from controller import Robot, Motor, DistanceSensor, Camera
-
+import time 
 import math
 import numpy as np
 import cv2
@@ -8,11 +8,11 @@ import cv2
 # Odometría
 TIME_STEP = 32
 CRUISE_SPEED = 10
-RADIO_RUEDA = 0.021
-ESPACIO_ENTRE_RUEDAS = 0.10819
+RADIO_RUEDA = 21
+ESPACIO_ENTRE_RUEDAS = 107.5
 RADIO_ENTRE_RUEDAS = ESPACIO_ENTRE_RUEDAS/2
 
-DELTA_RECTO = 0.25 / RADIO_RUEDA
+DELTA_RECTO = 250 / RADIO_RUEDA
 DELTA_GIRO = (90 * (math.pi/180)) * RADIO_ENTRE_RUEDAS / RADIO_RUEDA
 
 INICIOX = 1
@@ -42,12 +42,17 @@ def inicializar_controladores(timestep):
     posR.enable(timestep)
 
     camara = robot.getDevice("camera")
-    camara.enable(timestep)
+    camara.enable(120)
 
     sensores_infrarrojos = [
         "left infrared sensor",
         "front infrared sensor",
         "right infrared sensor",
+        "rear infrared sensor",
+        "front left infrared sensor",
+        "front right infrared sensor",
+        "rear left infrared sensor",
+        "rear right infrared sensor",
     ]
 
     sensores_infrarrojos_init = []
@@ -74,40 +79,62 @@ def avanzar(leftWheel, rightWheel, posL, posR,robot):
     encoderL = posL.getValue() + DELTA_RECTO
     encoderR = posR.getValue() + DELTA_RECTO
 
+    while not(posL.getValue() >= encoderL - 0.001 and posR.getValue() >= encoderR - 0.001):  
+        robot.step(TIME_STEP)
+
     return encoderL, encoderR
 
-def girar_derecha(leftWheel, rightWheel, posL, posR,robot):
-    leftWheel.setVelocity(CRUISE_SPEED)
-    rightWheel.setVelocity(CRUISE_SPEED)
-    leftWheel.setPosition(posL.getValue() + DELTA_GIRO)
-    rightWheel.setPosition(posR.getValue() - DELTA_GIRO)
-    encoderL = posL.getValue() + DELTA_GIRO
-    encoderR = posR.getValue() - DELTA_GIRO
+def girar_derecha(leftWheel, rightWheel, posL, posR, robot):
+    leftWheel.setVelocity(0)
+    rightWheel.setVelocity(0)
+    encoderL = posL.getValue() + DELTA_GIRO  # Calcula el objetivo para la rueda izquierda
+    encoderR = posR.getValue() - DELTA_GIRO  # Calcula el objetivo para la rueda derecha
+    leftWheel.setVelocity(CRUISE_SPEED)  # Establece la velocidad para comenzar el giro
+    rightWheel.setVelocity(CRUISE_SPEED)  # Asegúrate de que este valor sea negativo para girar a la derecha
+    
+    # Establece las posiciones objetivo sin esperar un valor de retorno
+    leftWheel.setPosition(encoderL)
+    rightWheel.setPosition(encoderR)
 
+    # Espera hasta que el robot alcance las posiciones objetivo
+    while not(posL.getValue() >= encoderL - 0.001 and posR.getValue() <= encoderR + 0.001):  
+        robot.step(TIME_STEP)
+    
     return encoderL, encoderR
 
 def girar_izquierda(leftWheel, rightWheel, posL, posR,robot):
-    leftWheel.setVelocity(CRUISE_SPEED)
-    rightWheel.setVelocity(CRUISE_SPEED)
-    leftWheel.setPosition(posL.getValue() - DELTA_GIRO)
-    rightWheel.setPosition(posR.getValue() + DELTA_GIRO)
-    encoderL = posL.getValue() - DELTA_GIRO
-    encoderR = posR.getValue() + DELTA_GIRO
+    leftWheel.setVelocity(0)
+    rightWheel.setVelocity(0)
+    encoderL = posL.getValue() - DELTA_GIRO  # Calcula el objetivo para la rueda izquierda
+    encoderR = posR.getValue() + DELTA_GIRO  # Calcula el objetivo para la rueda derecha
+    leftWheel.setVelocity(CRUISE_SPEED)  # Establece la velocidad para comenzar el giro
+    rightWheel.setVelocity(CRUISE_SPEED)  # Asegúrate de que este valor sea negativo para girar a la derecha
+    
+    # Establece las posiciones objetivo sin esperar un valor de retorno
+    leftWheel.setPosition(encoderL)
+    rightWheel.setPosition(encoderR)
+
+    # Espera hasta que el robot alcance las posiciones objetivo
+    while not(posL.getValue() <= encoderL + 0.001 and posR.getValue() >= encoderR - 0.001):  
+        robot.step(TIME_STEP)
 
     return encoderL, encoderR
 
 # No funciona aun
 def seguir_paredes(leftWheel,rightWheel,posL,posR,Lista_sensores,robot):
-     global orientacion
-     if(DistanceSensor.getValue(Lista_sensores[0]) < 180):
+    global orientacion
+     
+    if(DistanceSensor.getValue(Lista_sensores[1]) <= 140 and DistanceSensor.getValue(Lista_sensores[0]) >= 150):
+        encoderL, encoderR = avanzar(leftWheel, rightWheel, posL, posR,robot)
 
-         encoderL, encoderR = girar_izquierda(leftWheel, rightWheel, posL, posR,robot)
-     elif(DistanceSensor.getValue(Lista_sensores[1]) < 180):
+    elif(DistanceSensor.getValue(Lista_sensores[0]) < 150 and DistanceSensor.getValue(Lista_sensores[1]) < 150 and DistanceSensor.getValue(Lista_sensores[2]) < 150 and DistanceSensor.getValue(Lista_sensores[3]) < 150):
+        encoderL, encoderR = girar_izquierda(leftWheel, rightWheel, posL, posR,robot)
+        encoderL, encoderR = avanzar(leftWheel, rightWheel, posL, posR,robot)
 
-         encoderL, encoderR = avanzar(leftWheel, rightWheel, posL, posR,robot)
-     elif(DistanceSensor.getValue(Lista_sensores[2]) >= 180):
+    else:
+        encoderL, encoderR = girar_derecha(leftWheel, rightWheel, posL, posR,robot)
+        
 
-         encoderL, encoderR = girar_derecha(leftWheel, rightWheel, posL, posR,robot)
 
 def detectar_amarillo(camara):
     imagen = camara.getImage()
@@ -145,6 +172,7 @@ def detectar_amarillo(camara):
 def main():
     robot, leftWheel, rightWheel, posL, posR, camara, sensores_infrarrojos = inicializar_controladores(TIME_STEP)
     robot.step(TIME_STEP)
+    time.sleep(1)
     while robot.step(TIME_STEP) != -1:
 
         seguir_paredes(leftWheel,rightWheel,posL,posR,sensores_infrarrojos,robot)
