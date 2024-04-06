@@ -18,11 +18,8 @@ DELTA_GIRO = (90 * (math.pi/180)) * RADIO_ENTRE_RUEDAS / RADIO_RUEDA
 INICIOX = 1
 INICIOY = 8
 INICIO = INICIOX, INICIOY
-TAMAÑO_MAPA = 12,12
+TAMAÑO_MAPA = 12
 
-
-
-mapa = np.zeros((TAMAÑO_MAPA), dtype=np.int8)
 
 def inicializar_controladores(timestep):
 
@@ -64,14 +61,81 @@ def inicializar_controladores(timestep):
         # Agregar el sensor a la lista de sensores infrarrojos
         sensores_infrarrojos_init.append(sensor)
 
+    mapa = np.zeros((TAMAÑO_MAPA*2, TAMAÑO_MAPA*2), dtype=np.int8)
+    pos_robot = (TAMAÑO_MAPA, TAMAÑO_MAPA)
+    mirando = 0
 
-    return robot, leftWheel, rightWheel, posL, posR, camara, sensores_infrarrojos_init
+    return robot, leftWheel, rightWheel, posL, posR, camara, sensores_infrarrojos_init, mapa, pos_robot, mirando
+
+def guardarMapa(Lista_sensores, mapa, pos_robot, mirando):
+    (x, y) = pos_robot
+
+    if mirando == 0 or mirando == 1:                                   #Si se va hacia arriba o derecha, se suma en positivo la posicion
+        suma = 1                                
+    else:                                                              #Si se va hacia abajo o izq, se suma el inverso de las posiciones anteriores
+        suma = -1
+
+    if (DistanceSensor.getValue(Lista_sensores[0]) >= 150):            #Izq
+        mapa[x - suma, y] = 1
+
+    if (DistanceSensor.getValue(Lista_sensores[1]) >= 150):            #Delante
+        mapa[x, y + suma] = 1
+
+    if (DistanceSensor.getValue(Lista_sensores[2]) >= 150):            #Drch
+        mapa[x + suma, y] = 1
+
+    if (DistanceSensor.getValue(Lista_sensores[3]) >= 150):            #Atras
+        mapa[x, y - suma] = 1
+
+    if (DistanceSensor.getValue(Lista_sensores[4]) >= 150):            #Delante-Izq
+        mapa[x - suma, y + suma] = 1
+
+    if (DistanceSensor.getValue(Lista_sensores[5]) >= 150):            #Delante-Drch
+        mapa[x + suma, y + suma] = 1
+
+    if (DistanceSensor.getValue(Lista_sensores[6]) >= 150):            #Atras-Izq
+        mapa[x - suma, y - suma] = 1
+
+    if (DistanceSensor.getValue(Lista_sensores[7]) >= 150):            #Atras-Drch
+        mapa[x + suma, y - suma] = 1
+
+    return mapa
+
+def cambiarPos(pos_robot, mirando):
+    (x, y) = pos_robot
+
+    if mirando == 0: 
+        pos_robot = (x, y+1)
+
+    elif mirando == 1:                                   
+        pos_robot = (x+1, y)
+
+    elif mirando == 2: 
+        pos_robot = (x, y-1)
+
+    elif mirando == 3:                                  
+        pos_robot = (x-1, y)
+
+    return pos_robot
+
+def cambiarMirando(mirar, mirando):
+    if mirar == 1:              #Al girar a la drch
+        mirando += 1
+    elif mirar == -1:           #Al girar a la izq
+        mirando -= 1
+
+    if mirando == 4:          #Si se completa un giro desde la izq se vuelve a 0, mirar arriba
+        mirando = 0
+    elif mirando == -1:       #Si al girar desde mirando delante se mira a la izq, se mira a 3
+        mirando = 3
+
+    return mirando
 
 def stop_robot():
     leftWheel.setVelocity(0)
     rightWheel.setVelocity(0)
 
-def avanzar(leftWheel, rightWheel, posL, posR,robot):
+def avanzar(leftWheel, rightWheel, posL, posR, Lista_sensores, mapa, pos_robot, mirando, robot):
     leftWheel.setVelocity(CRUISE_SPEED)
     rightWheel.setVelocity(CRUISE_SPEED)
     leftWheel.setPosition(posL.getValue() + DELTA_RECTO)
@@ -81,10 +145,13 @@ def avanzar(leftWheel, rightWheel, posL, posR,robot):
 
     while not(posL.getValue() >= encoderL - 0.001 and posR.getValue() >= encoderR - 0.001):  
         robot.step(TIME_STEP)
+    
+    new_pos = cambiarPos(pos_robot, mirando)
+    mapa = guardarMapa(Lista_sensores, mapa, new_pos, mirando)
 
-    return encoderL, encoderR
+    return encoderL, encoderR, new_pos, mapa
 
-def girar_derecha(leftWheel, rightWheel, posL, posR, robot):
+def girar_derecha(leftWheel, rightWheel, posL, posR, mirando, robot):
     leftWheel.setVelocity(0)
     rightWheel.setVelocity(0)
     encoderL = posL.getValue() + DELTA_GIRO  # Calcula el objetivo para la rueda izquierda
@@ -100,9 +167,11 @@ def girar_derecha(leftWheel, rightWheel, posL, posR, robot):
     while not(posL.getValue() >= encoderL - 0.001 and posR.getValue() <= encoderR + 0.001):  
         robot.step(TIME_STEP)
     
-    return encoderL, encoderR
+    mirando = cambiarMirando(1, mirando)
 
-def girar_izquierda(leftWheel, rightWheel, posL, posR,robot):
+    return encoderL, encoderR, mirando
+
+def girar_izquierda(leftWheel, rightWheel, posL, posR, mirando, robot):
     leftWheel.setVelocity(0)
     rightWheel.setVelocity(0)
     encoderL = posL.getValue() - DELTA_GIRO  # Calcula el objetivo para la rueda izquierda
@@ -118,23 +187,25 @@ def girar_izquierda(leftWheel, rightWheel, posL, posR,robot):
     while not(posL.getValue() <= encoderL + 0.001 and posR.getValue() >= encoderR - 0.001):  
         robot.step(TIME_STEP)
 
-    return encoderL, encoderR
+    mirando = cambiarMirando(-1, mirando)
 
-# No funciona aun
-def seguir_paredes(leftWheel,rightWheel,posL,posR,Lista_sensores,robot):
+    return encoderL, encoderR, mirando
+
+
+def seguir_paredes(leftWheel, rightWheel, posL, posR, Lista_sensores, mapa, pos_robot, mirando, robot):
     global orientacion
      
     if(DistanceSensor.getValue(Lista_sensores[1]) <= 140 and DistanceSensor.getValue(Lista_sensores[0]) >= 150):
-        encoderL, encoderR = avanzar(leftWheel, rightWheel, posL, posR,robot)
+        encoderL, encoderR, pos_robot, mapa = avanzar(leftWheel, rightWheel, posL, posR, Lista_sensores, mapa, pos_robot, mirando, robot)
 
     elif(DistanceSensor.getValue(Lista_sensores[0]) < 150 and DistanceSensor.getValue(Lista_sensores[1]) < 150 and DistanceSensor.getValue(Lista_sensores[2]) < 150 and DistanceSensor.getValue(Lista_sensores[3]) < 150):
-        encoderL, encoderR = girar_izquierda(leftWheel, rightWheel, posL, posR,robot)
-        encoderL, encoderR = avanzar(leftWheel, rightWheel, posL, posR,robot)
+        encoderL, encoderR, mirando = girar_izquierda(leftWheel, rightWheel, posL, posR, mirando, robot)
+        encoderL, encoderR, pos_robot, mapa = avanzar(leftWheel, rightWheel, posL, posR, Lista_sensores, mapa, pos_robot, mirando, robot)
 
     else:
-        encoderL, encoderR = girar_derecha(leftWheel, rightWheel, posL, posR,robot)
+        encoderL, encoderR, mirando = girar_derecha(leftWheel, rightWheel, posL, posR, mirando, robot)
         
-
+    return mapa, pos_robot, mirando
 
 def detectar_amarillo(camara):
     imagen = camara.getImage()
@@ -170,12 +241,13 @@ def detectar_amarillo(camara):
 
 
 def main():
-    robot, leftWheel, rightWheel, posL, posR, camara, sensores_infrarrojos = inicializar_controladores(TIME_STEP)
+    robot, leftWheel, rightWheel, posL, posR, camara, sensores_infrarrojos, mapa, pos_robot, mirando = inicializar_controladores(TIME_STEP)
     robot.step(TIME_STEP)
     time.sleep(1)
     while robot.step(TIME_STEP) != -1:
-
-        seguir_paredes(leftWheel,rightWheel,posL,posR,sensores_infrarrojos,robot)
+        print(f"pos: {pos_robot}")
+        print(f"mirando: {mirando}")
+        mapa, pos_robot, mirando = seguir_paredes(leftWheel,rightWheel,posL,posR,sensores_infrarrojos, mapa, pos_robot, mirando, robot)
         """
             if detectar_amarillo(camara):
             # Acción a tomar cuando se detecta un objeto amarillo
@@ -188,7 +260,8 @@ def main():
             leftWheel.setVelocity(CRUISE_SPEED)
             rightWheel.setVelocity(CRUISE_SPEED)
          """
-
+        
+        np.savetxt('./mapa.txt', mapa, fmt='%d')
 
 
 if __name__ == "__main__":
