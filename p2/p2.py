@@ -20,6 +20,12 @@ INICIOY = 8
 INICIO = INICIOX, INICIOY
 TAMAÑO_MAPA = 12
 
+coords = [
+    (0, 1),
+    (1, 0),  
+    (0, -1),  
+    (-1,0)  
+]
 
 def inicializar_controladores(timestep):
 
@@ -62,7 +68,7 @@ def inicializar_controladores(timestep):
         sensores_infrarrojos_init.append(sensor)
 
     mapa = np.zeros((TAMAÑO_MAPA*2, TAMAÑO_MAPA*2), dtype=np.int8)
-    pos_robot = (TAMAÑO_MAPA, TAMAÑO_MAPA)
+    pos_robot = (TAMAÑO_MAPA - 1, TAMAÑO_MAPA - 1)
     mirando = 0
 
     return robot, leftWheel, rightWheel, posL, posR, camara, sensores_infrarrojos_init, mapa, pos_robot, mirando
@@ -70,34 +76,45 @@ def inicializar_controladores(timestep):
 def guardarMapa(Lista_sensores, mapa, pos_robot, mirando):
     (x, y) = pos_robot
 
-    if mirando == 0 or mirando == 1:                                   #Si se va hacia arriba o derecha, se suma en positivo la posicion
-        suma = 1                                
-    else:                                                              #Si se va hacia abajo o izq, se suma el inverso de las posiciones anteriores
-        suma = -1
+    if mirando == 0:                                                   #Si se va hacia arriba
+        sum1 = 0
+        sum2 = 1
+        sum3 = 2
+        sum4 = 3
+    elif mirando == 1:                                                 #Si se va hacia drch
+        sum1 = 1  
+        sum2 = 2
+        sum3 = 3
+        sum4 = 0
+    elif mirando == 2:                                                 #Si se va hacia abajo
+        sum1 = 2
+        sum2 = 3
+        sum3 = 0
+        sum4 = 1
+    elif mirando == 3:                                                 #Si se va hacia izq
+        sum1 = 3
+        sum2 = 0
+        sum3 = 1
+        sum4 = 2
 
-    if (DistanceSensor.getValue(Lista_sensores[0]) >= 150):            #Izq
-        mapa[x - suma, y] = 1
+    if (DistanceSensor.getValue(Lista_sensores[1]) >= 180):            #Delante
+        (sumx,sumy) = coords[sum1]
+        mapa[x + sumx, y + sumy] = 1
 
-    if (DistanceSensor.getValue(Lista_sensores[1]) >= 150):            #Delante
-        mapa[x, y + suma] = 1
+    if (DistanceSensor.getValue(Lista_sensores[2]) >= 180):            #Drch
+        (sumx,sumy) = coords[sum2]
+        mapa[x + sumx, y + sumy] = 1
 
-    if (DistanceSensor.getValue(Lista_sensores[2]) >= 150):            #Drch
-        mapa[x + suma, y] = 1
+    if (DistanceSensor.getValue(Lista_sensores[3]) >= 180):            #Detras
+        (sumx,sumy) = coords[sum3]
+        mapa[x + sumx, y + sumy] = 1
+        
+    if (DistanceSensor.getValue(Lista_sensores[0]) >= 180):            #Izq
+        (sumx,sumy) = coords[sum4]
+        mapa[x + sumx, y + sumy] = 1
 
-    if (DistanceSensor.getValue(Lista_sensores[3]) >= 150):            #Atras
-        mapa[x, y - suma] = 1
-
-    if (DistanceSensor.getValue(Lista_sensores[4]) >= 150):            #Delante-Izq
-        mapa[x - suma, y + suma] = 1
-
-    if (DistanceSensor.getValue(Lista_sensores[5]) >= 150):            #Delante-Drch
-        mapa[x + suma, y + suma] = 1
-
-    if (DistanceSensor.getValue(Lista_sensores[6]) >= 150):            #Atras-Izq
-        mapa[x - suma, y - suma] = 1
-
-    if (DistanceSensor.getValue(Lista_sensores[7]) >= 150):            #Atras-Drch
-        mapa[x + suma, y - suma] = 1
+    
+    
 
     return mapa
 
@@ -244,9 +261,11 @@ def main():
     robot, leftWheel, rightWheel, posL, posR, camara, sensores_infrarrojos, mapa, pos_robot, mirando = inicializar_controladores(TIME_STEP)
     robot.step(TIME_STEP)
     time.sleep(1)
+    mapa = guardarMapa(sensores_infrarrojos, mapa, pos_robot, mirando)
     while robot.step(TIME_STEP) != -1:
         print(f"pos: {pos_robot}")
         print(f"mirando: {mirando}")
+        print(f"mapa: {mapa}")
         mapa, pos_robot, mirando = seguir_paredes(leftWheel,rightWheel,posL,posR,sensores_infrarrojos, mapa, pos_robot, mirando, robot)
         """
             if detectar_amarillo(camara):
