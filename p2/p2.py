@@ -27,6 +27,13 @@ coords = [
     (-1,0)  
 ]
 
+coordsDiag = [
+    ( 1, 1),
+    (1, -1),  
+    (-1, -1),  
+    (-1, 1)  
+]
+
 def inicializar_controladores(timestep):
 
     # create the Robot instance.
@@ -52,10 +59,10 @@ def inicializar_controladores(timestep):
         "front infrared sensor",
         "right infrared sensor",
         "rear infrared sensor",
-        "front left infrared sensor",
         "front right infrared sensor",
-        "rear left infrared sensor",
         "rear right infrared sensor",
+        "rear left infrared sensor",
+        "front left infrared sensor"       
     ]
 
     sensores_infrarrojos_init = []
@@ -68,6 +75,7 @@ def inicializar_controladores(timestep):
         sensores_infrarrojos_init.append(sensor)
 
     mapa = np.zeros((TAMAÑO_MAPA*2, TAMAÑO_MAPA*2), dtype=np.int8)
+    mapa[TAMAÑO_MAPA - 1, TAMAÑO_MAPA - 1] = -1
     pos_robot = (TAMAÑO_MAPA - 1, TAMAÑO_MAPA - 1)
     mirando = 0
 
@@ -97,25 +105,51 @@ def guardarMapa(Lista_sensores, mapa, pos_robot, mirando):
         sum3 = 1
         sum4 = 2
 
-    if (DistanceSensor.getValue(Lista_sensores[1]) >= 180):            #Delante
+    distDelante = DistanceSensor.getValue(Lista_sensores[1])
+    distDrch = DistanceSensor.getValue(Lista_sensores[2])
+    distDetras = DistanceSensor.getValue(Lista_sensores[3])
+    distIzq = DistanceSensor.getValue(Lista_sensores[0])
+
+    if (distDelante >= 180):                                         #Delante
         (sumx,sumy) = coords[sum1]
-        mapa[x + sumx, y + sumy] = 1
+        if (mapa[x + sumx, y + sumy] == 0):
+            mapa[x + sumx, y + sumy] = 1
 
-    if (DistanceSensor.getValue(Lista_sensores[2]) >= 180):            #Drch
+    if (distDrch >= 180):                                             #Drch
         (sumx,sumy) = coords[sum2]
-        mapa[x + sumx, y + sumy] = 1
+        if (mapa[x + sumx, y + sumy] == 0):
+            mapa[x + sumx, y + sumy] = 1
 
-    if (DistanceSensor.getValue(Lista_sensores[3]) >= 180):            #Detras
+    if (distDetras  >= 180):                                          #Detras
         (sumx,sumy) = coords[sum3]
-        mapa[x + sumx, y + sumy] = 1
+        if (mapa[x + sumx, y + sumy] == 0):
+            mapa[x + sumx, y + sumy] = 1
         
-    if (DistanceSensor.getValue(Lista_sensores[0]) >= 180):            #Izq
+    if (distIzq >= 180):                                               #Izq
         (sumx,sumy) = coords[sum4]
-        mapa[x + sumx, y + sumy] = 1
+        if (mapa[x + sumx, y + sumy] == 0):
+            mapa[x + sumx, y + sumy] = 1
 
-    
-    
+    if (distDelante >= 180 and distDrch >= 180):                    #Delante-Drch
+        (sumx,sumy) = coordsDiag[sum1]
+        if (mapa[x + sumx, y + sumy] == 0):
+            mapa[x + sumx, y + sumy] = 1
 
+    if (distDetras >= 180 and distDrch >= 180):                    #Detras-Drch
+        (sumx,sumy) = coordsDiag[sum2]
+        if (mapa[x + sumx, y + sumy] == 0):
+            mapa[x + sumx, y + sumy] = 1
+
+    if (distDetras >= 180 and distIzq >= 180):                    #Detras-Izq
+        (sumx,sumy) = coordsDiag[sum3]
+        if (mapa[x + sumx, y + sumy] == 0):
+            mapa[x + sumx, y + sumy] = 1
+    
+    if (distDelante >= 180 and distIzq >= 180):                    #Delante-Izq
+        (sumx,sumy) = coordsDiag[sum4]
+        if (mapa[x + sumx, y + sumy] == 0):
+            mapa[x + sumx, y + sumy] = 1
+    
     return mapa
 
 def cambiarPos(pos_robot, mirando):
@@ -267,18 +301,11 @@ def main():
         print(f"mirando: {mirando}")
         print(f"mapa: {mapa}")
         mapa, pos_robot, mirando = seguir_paredes(leftWheel,rightWheel,posL,posR,sensores_infrarrojos, mapa, pos_robot, mirando, robot)
-        """
-            if detectar_amarillo(camara):
+        if detectar_amarillo(camara):
             # Acción a tomar cuando se detecta un objeto amarillo
-            print("Objeto amarillo detectado")
-            leftWheel.setVelocity(0)
-            rightWheel.setVelocity(0)
-            break
-        else:
-            # Continuar con el comportamiento normal
-            leftWheel.setVelocity(CRUISE_SPEED)
-            rightWheel.setVelocity(CRUISE_SPEED)
-         """
+            (x, y) = pos_robot
+            (sumx, sumy) = coords[mirando]
+            mapa[x + sumx, y + sumy] = 2         
         
         np.savetxt('./mapa.txt', mapa, fmt='%d')
 
