@@ -9,7 +9,7 @@ import cv2
 TIME_STEP = 32
 CRUISE_SPEED = 10
 RADIO_RUEDA = 21
-ESPACIO_ENTRE_RUEDAS = 108.19
+ESPACIO_ENTRE_RUEDAS = 108.12
 RADIO_ENTRE_RUEDAS = ESPACIO_ENTRE_RUEDAS/2
 
 DELTA_RECTO = 250 / RADIO_RUEDA
@@ -194,9 +194,9 @@ def avanzar(leftWheel, rightWheel, posL, posR, Lista_sensores, mapa, pos_robot, 
     encoderL = posL.getValue() + DELTA_RECTO
     encoderR = posR.getValue() + DELTA_RECTO
 
-    while not(posL.getValue() >= encoderL - 0.001 and posR.getValue() >= encoderR - 0.001):  
+    while not(posL.getValue() >= encoderL - 0.004 and posR.getValue() >= encoderR - 0.004):  
         robot.step(TIME_STEP)
-    
+        
     new_pos = cambiarPos(pos_robot, mirando)
     mapa = guardarMapa(Lista_sensores, mapa, new_pos, mirando)
 
@@ -213,11 +213,10 @@ def girar_derecha(leftWheel, rightWheel, posL, posR, mirando, robot):
     # Establece las posiciones objetivo sin esperar un valor de retorno
     leftWheel.setPosition(encoderL)
     rightWheel.setPosition(encoderR)
-
     # Espera hasta que el robot alcance las posiciones objetivo
-    while not(posL.getValue() >= encoderL - 0.001 and posR.getValue() <= encoderR + 0.001):  
+    while not(posL.getValue() >= encoderL - 0.004 and posR.getValue() <= encoderR + 0.004):  
         robot.step(TIME_STEP)
-    
+
     mirando = cambiarMirando(1, mirando)
 
     return encoderL, encoderR, mirando
@@ -235,7 +234,7 @@ def girar_izquierda(leftWheel, rightWheel, posL, posR, mirando, robot):
     rightWheel.setPosition(encoderR)
 
     # Espera hasta que el robot alcance las posiciones objetivo
-    while not(posL.getValue() <= encoderL + 0.001 and posR.getValue() >= encoderR - 0.001):  
+    while not(posL.getValue() <= encoderL + 0.004 and posR.getValue() >= encoderR - 0.004):  
         robot.step(TIME_STEP)
 
     mirando = cambiarMirando(-1, mirando)
@@ -252,10 +251,10 @@ def seguir_paredes(leftWheel, rightWheel, posL, posR, Lista_sensores, mapa, pos_
     elif(DistanceSensor.getValue(Lista_sensores[0]) < 150 and DistanceSensor.getValue(Lista_sensores[1]) < 150 and DistanceSensor.getValue(Lista_sensores[2]) < 150 and DistanceSensor.getValue(Lista_sensores[3]) < 150):
         encoderL, encoderR, mirando = girar_izquierda(leftWheel, rightWheel, posL, posR, mirando, robot)
         encoderL, encoderR, pos_robot, mapa = avanzar(leftWheel, rightWheel, posL, posR, Lista_sensores, mapa, pos_robot, mirando, robot)
-
+        
     else:
         encoderL, encoderR, mirando = girar_derecha(leftWheel, rightWheel, posL, posR, mirando, robot)
-        
+
     return mapa, pos_robot, mirando
 
 def detectar_amarillo(camara):
@@ -289,25 +288,51 @@ def detectar_amarillo(camara):
     else:
         return False
 
-
-
 def main():
     robot, leftWheel, rightWheel, posL, posR, camara, sensores_infrarrojos, mapa, pos_robot, mirando = inicializar_controladores(TIME_STEP)
     robot.step(TIME_STEP)
     time.sleep(1)
     mapa = guardarMapa(sensores_infrarrojos, mapa, pos_robot, mirando)
+    pos_pasada = pos_robot
+
+    #Bucle para salir de Base antes del bucle principal
     while robot.step(TIME_STEP) != -1:
-        print(f"pos: {pos_robot}")
-        print(f"mirando: {mirando}")
-        print(f"mapa: {mapa}")
         mapa, pos_robot, mirando = seguir_paredes(leftWheel,rightWheel,posL,posR,sensores_infrarrojos, mapa, pos_robot, mirando, robot)
         if detectar_amarillo(camara):
             # Acción a tomar cuando se detecta un objeto amarillo
             (x, y) = pos_robot
             (sumx, sumy) = coords[mirando]
-            mapa[x + sumx, y + sumy] = 2         
-        
-        np.savetxt('./mapa.txt', mapa, fmt='%d')
+            mapa[x + sumx, y + sumy] = 2  
+
+        if (pos_robot != pos_pasada):   break
+        else:   pos_pasada = pos_robot
+
+    #Bucle Mapear
+    (x1, y1) = pos_robot
+    while (mapa[x1,y1] != -1):                         
+        robot.step(TIME_STEP)
+        print(f"mapa: {mapa}")
+        mapa, pos_robot, mirando = seguir_paredes(leftWheel,rightWheel,posL,posR,sensores_infrarrojos, mapa, pos_robot, mirando, robot)
+        if detectar_amarillo(camara):
+            (x, y) = pos_robot
+            # Acción a tomar cuando se detecta un objeto amarillo
+            (sumx, sumy) = coords[mirando]
+            mapa[x + sumx, y + sumy] = 2  
+        (x1, y1) = pos_robot  
+             
+    np.savetxt('./mapa.txt', mapa, fmt='%d')
+    
+    #Bucle Buscar amarillo
+    while (not detectar_amarillo(camara)):
+        robot.step(TIME_STEP)            
+        print(f"Buscando...")
+        mapa, pos_robot, mirando = seguir_paredes(leftWheel,rightWheel,posL,posR,sensores_infrarrojos, mapa, pos_robot, mirando, robot)
+        if detectar_amarillo(camara):
+            leftWheel.setVelocity(0)
+            rightWheel.setVelocity(0)
+            break
+    
+    
 
 
 if __name__ == "__main__":
