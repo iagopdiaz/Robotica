@@ -9,7 +9,7 @@ import cv2
 TIME_STEP = 32
 CRUISE_SPEED = 10
 RADIO_RUEDA = 21
-ESPACIO_ENTRE_RUEDAS = 108.12
+ESPACIO_ENTRE_RUEDAS = 107.90
 RADIO_ENTRE_RUEDAS = ESPACIO_ENTRE_RUEDAS/2
 
 DELTA_RECTO = 250 / RADIO_RUEDA
@@ -186,7 +186,7 @@ def stop_robot():
     leftWheel.setVelocity(0)
     rightWheel.setVelocity(0)
 
-def avanzar(leftWheel, rightWheel, posL, posR, Lista_sensores, mapa, pos_robot, mirando, robot):
+def avanzar(leftWheel, rightWheel, posL, posR, pos_robot, mirando, robot):
     leftWheel.setVelocity(CRUISE_SPEED)
     rightWheel.setVelocity(CRUISE_SPEED)
     leftWheel.setPosition(posL.getValue() + DELTA_RECTO)
@@ -198,9 +198,8 @@ def avanzar(leftWheel, rightWheel, posL, posR, Lista_sensores, mapa, pos_robot, 
         robot.step(TIME_STEP)
         
     new_pos = cambiarPos(pos_robot, mirando)
-    mapa = guardarMapa(Lista_sensores, mapa, new_pos, mirando)
 
-    return encoderL, encoderR, new_pos, mapa
+    return encoderL, encoderR, new_pos
 
 def girar_derecha(leftWheel, rightWheel, posL, posR, mirando, robot):
     leftWheel.setVelocity(0)
@@ -246,16 +245,68 @@ def seguir_paredes(leftWheel, rightWheel, posL, posR, Lista_sensores, mapa, pos_
     global orientacion
      
     if(DistanceSensor.getValue(Lista_sensores[1]) <= 140 and DistanceSensor.getValue(Lista_sensores[0]) >= 150):
-        encoderL, encoderR, pos_robot, mapa = avanzar(leftWheel, rightWheel, posL, posR, Lista_sensores, mapa, pos_robot, mirando, robot)
+        encoderL, encoderR, pos_robot = avanzar(leftWheel, rightWheel, posL, posR, pos_robot, mirando, robot)
 
     elif(DistanceSensor.getValue(Lista_sensores[0]) < 150 and DistanceSensor.getValue(Lista_sensores[1]) < 150 and DistanceSensor.getValue(Lista_sensores[2]) < 150 and DistanceSensor.getValue(Lista_sensores[3]) < 150):
         encoderL, encoderR, mirando = girar_izquierda(leftWheel, rightWheel, posL, posR, mirando, robot)
-        encoderL, encoderR, pos_robot, mapa = avanzar(leftWheel, rightWheel, posL, posR, Lista_sensores, mapa, pos_robot, mirando, robot)
+        encoderL, encoderR, pos_robot = avanzar(leftWheel, rightWheel, posL, posR, pos_robot, mirando, robot)
         
     else:
         encoderL, encoderR, mirando = girar_derecha(leftWheel, rightWheel, posL, posR, mirando, robot)
 
+    mapa = guardarMapa(Lista_sensores, mapa, pos_robot, mirando)
+
     return mapa, pos_robot, mirando
+
+def encontrar_siguiente_paso(distancias, pos_robot):
+    # Determina la posición adyacente con la menor distancia hacia la base
+    x, y = pos_robot
+    min_dist = float('inf')
+    siguiente_paso = None
+    movimientos = [(0, 1), (0, -1), (-1, 0), (1, 0)]  # Arriba, abajo, izquierda, derecha
+
+    for dx, dy in movimientos:
+        nx, ny = x + dx, y + dy
+        if 0 <= nx < distancias.shape[0] and 0 <= ny < distancias.shape[1]:
+            if distancias[nx, ny] < min_dist:
+                min_dist = distancias[nx, ny]
+                siguiente_paso = (nx, ny)
+
+    return siguiente_paso
+
+def volver_base(leftWheel, rightWheel, posL, posR, distancias, pos_robot, mirando, robot):
+    siguiente_paso = encontrar_siguiente_paso(distancias, pos_robot)
+        
+    # Decide si necesita girar o avanzar basado en la posición del siguiente paso
+    if siguiente_paso == (pos_robot[0], pos_robot[1] + 1):  # Si el siguiente paso es arriba
+        while(mirando != 0):
+            encoderL, encoderR, mirando = girar_derecha(leftWheel, rightWheel, posL, posR, mirando, robot)
+        encoderL, encoderR, pos_robot = avanzar(leftWheel, rightWheel, posL, posR, pos_robot, mirando, robot)
+        pass
+
+    elif siguiente_paso == (pos_robot[0] + 1, pos_robot[1]):  # Si el siguiente paso es a la derecha
+        while(mirando != 1):
+            encoderL, encoderR, mirando = girar_derecha(leftWheel, rightWheel, posL, posR, mirando, robot)
+        encoderL, encoderR, pos_robot = avanzar(leftWheel, rightWheel, posL, posR, pos_robot, mirando, robot)
+        pass
+
+    elif siguiente_paso == (pos_robot[0], pos_robot[1] - 1):  # Si el siguiente paso es abajo
+        while(mirando != 2):
+            encoderL, encoderR, mirando = girar_derecha(leftWheel, rightWheel, posL, posR, mirando, robot)
+        encoderL, encoderR, pos_robot = avanzar(leftWheel, rightWheel, posL, posR, pos_robot, mirando, robot)
+        pass
+
+    elif siguiente_paso == (pos_robot[0] - 1, pos_robot[1]):  # Si el siguiente paso es a la izquierda
+        while(mirando != 3):
+            encoderL, encoderR, mirando = girar_derecha(leftWheel, rightWheel, posL, posR, mirando, robot)
+        encoderL, encoderR, pos_robot = avanzar(leftWheel, rightWheel, posL, posR, pos_robot, mirando, robot)
+        pass
+    
+
+    # Actualiza pos_robot después de avanzar
+    pos_robot = siguiente_paso
+
+    return pos_robot, mirando
 
 def detectar_amarillo(camara):
     imagen = camara.getImage()
@@ -287,6 +338,37 @@ def detectar_amarillo(camara):
         return True
     else:
         return False
+
+def expandir_frente_de_onda(mapa, base_pos):
+    # Inicializa el mapa de distancias con infinito para celdas no visitadas y -1 para las paredes
+    distancias = np.full(mapa.shape, np.inf)
+    for x in range(mapa.shape[0]):
+        for y in range(mapa.shape[1]):
+            if mapa[x, y] == 1:  # Pared
+                distancias[x, y] = 100
+
+    # Establece la distancia en la base a 0
+    distancias[base_pos] = 0
+    
+    # Cola para los puntos a procesar, comienza con la posición de la base
+    cola = [base_pos]
+    
+    # Direcciones de movimiento: arriba, abajo, izquierda, derecha
+    movimientos = [(0, 1), (0, -1), (-1, 0), (1, 0)]
+    
+    # Procesa la cola
+    while cola:
+        x, y = cola.pop(0)
+        for dx, dy in movimientos:
+            nx, ny = x + dx, y + dy
+            # Verifica si la nueva posición está dentro de los límites del mapa y no es una pared
+            if 0 <= nx < mapa.shape[0] and 0 <= ny < mapa.shape[1] and mapa[nx, ny] != 1:
+                # Si es una celda libre o un cubo amarillo y no ha sido visitada
+                if (mapa[nx, ny] == 0 or mapa[nx, ny] == 2) and distancias[nx, ny] == np.inf:
+                    distancias[nx, ny] = distancias[x, y] + 1
+                    cola.append((nx, ny))
+
+    return distancias
 
 def main():
     robot, leftWheel, rightWheel, posL, posR, camara, sensores_infrarrojos, mapa, pos_robot, mirando = inicializar_controladores(TIME_STEP)
@@ -321,6 +403,7 @@ def main():
         (x1, y1) = pos_robot  
              
     np.savetxt('./mapa.txt', mapa, fmt='%d')
+    distancias = expandir_frente_de_onda(mapa, (TAMAÑO_MAPA-1, TAMAÑO_MAPA-1))
     
     #Bucle Buscar amarillo
     while (not detectar_amarillo(camara)):
@@ -332,7 +415,13 @@ def main():
             rightWheel.setVelocity(0)
             break
     
-    
+    (x1, y1) = pos_robot
+    print(distancias)
+    while (mapa[x1,y1] != -1):                         
+        robot.step(TIME_STEP)
+        print(f"Volviendo...")
+        pos_robot, mirando = volver_base(leftWheel, rightWheel, posL, posR, distancias, pos_robot, mirando, robot)  
+        (x1, y1) = pos_robot
 
 
 if __name__ == "__main__":
