@@ -247,7 +247,7 @@ def seguir_paredes(leftWheel, rightWheel, posL, posR, Lista_sensores, mapa, pos_
     if(DistanceSensor.getValue(Lista_sensores[1]) <= 140 and DistanceSensor.getValue(Lista_sensores[0]) >= 150):
         encoderL, encoderR, pos_robot = avanzar(leftWheel, rightWheel, posL, posR, pos_robot, mirando, robot)
 
-    elif(DistanceSensor.getValue(Lista_sensores[0]) < 150 and DistanceSensor.getValue(Lista_sensores[1]) < 150 and DistanceSensor.getValue(Lista_sensores[2]) < 150 and DistanceSensor.getValue(Lista_sensores[3]) < 150):
+    elif(DistanceSensor.getValue(Lista_sensores[0]) < 150 and DistanceSensor.getValue(Lista_sensores[1]) < 150):
         encoderL, encoderR, mirando = girar_izquierda(leftWheel, rightWheel, posL, posR, mirando, robot)
         encoderL, encoderR, pos_robot = avanzar(leftWheel, rightWheel, posL, posR, pos_robot, mirando, robot)
         
@@ -280,25 +280,37 @@ def volver_base(leftWheel, rightWheel, posL, posR, distancias, pos_robot, mirand
     # Decide si necesita girar o avanzar basado en la posición del siguiente paso
     if siguiente_paso == (pos_robot[0], pos_robot[1] + 1):  # Si el siguiente paso es arriba
         while(mirando != 0):
-            encoderL, encoderR, mirando = girar_derecha(leftWheel, rightWheel, posL, posR, mirando, robot)
+            if (mirando == 1):
+                encoderL, encoderR, mirando = girar_izquierda(leftWheel, rightWheel, posL, posR, mirando, robot)
+            else:
+                encoderL, encoderR, mirando = girar_derecha(leftWheel, rightWheel, posL, posR, mirando, robot)
         encoderL, encoderR, pos_robot = avanzar(leftWheel, rightWheel, posL, posR, pos_robot, mirando, robot)
         pass
 
     elif siguiente_paso == (pos_robot[0] + 1, pos_robot[1]):  # Si el siguiente paso es a la derecha
         while(mirando != 1):
-            encoderL, encoderR, mirando = girar_derecha(leftWheel, rightWheel, posL, posR, mirando, robot)
+            if (mirando == 2):
+                encoderL, encoderR, mirando = girar_izquierda(leftWheel, rightWheel, posL, posR, mirando, robot)
+            else:
+                encoderL, encoderR, mirando = girar_derecha(leftWheel, rightWheel, posL, posR, mirando, robot)
         encoderL, encoderR, pos_robot = avanzar(leftWheel, rightWheel, posL, posR, pos_robot, mirando, robot)
         pass
 
     elif siguiente_paso == (pos_robot[0], pos_robot[1] - 1):  # Si el siguiente paso es abajo
         while(mirando != 2):
-            encoderL, encoderR, mirando = girar_derecha(leftWheel, rightWheel, posL, posR, mirando, robot)
+            if (mirando == 3):
+                encoderL, encoderR, mirando = girar_izquierda(leftWheel, rightWheel, posL, posR, mirando, robot)
+            else:
+                encoderL, encoderR, mirando = girar_derecha(leftWheel, rightWheel, posL, posR, mirando, robot)
         encoderL, encoderR, pos_robot = avanzar(leftWheel, rightWheel, posL, posR, pos_robot, mirando, robot)
         pass
 
     elif siguiente_paso == (pos_robot[0] - 1, pos_robot[1]):  # Si el siguiente paso es a la izquierda
         while(mirando != 3):
-            encoderL, encoderR, mirando = girar_derecha(leftWheel, rightWheel, posL, posR, mirando, robot)
+            if (mirando == 0):
+                encoderL, encoderR, mirando = girar_izquierda(leftWheel, rightWheel, posL, posR, mirando, robot)
+            else:
+                encoderL, encoderR, mirando = girar_derecha(leftWheel, rightWheel, posL, posR, mirando, robot)
         encoderL, encoderR, pos_robot = avanzar(leftWheel, rightWheel, posL, posR, pos_robot, mirando, robot)
         pass
     
