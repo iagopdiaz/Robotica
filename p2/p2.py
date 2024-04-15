@@ -182,9 +182,6 @@ def cambiarMirando(mirar, mirando):
 
     return mirando
 
-def stop_robot():
-    leftWheel.setVelocity(0)
-    rightWheel.setVelocity(0)
 
 def avanzar(leftWheel, rightWheel, posL, posR, pos_robot, mirando, robot):
     leftWheel.setVelocity(CRUISE_SPEED)
@@ -329,8 +326,8 @@ def selec_movimiento(nx, ny, movimiento_seleccionado, menor_distancia, distancia
 def calcular_mapa_vuelta(pos_robot, distancias):
     # Extraer la posición inicial del robot
     x, y = pos_robot
-    camino = []  # Iniciar el camino con la posición actual del robot
-    
+    camino = []  # Iniciar el camino
+    bloqueo = [] # Posiciones que bloquean al robot
 
     # Seguir el camino hasta llegar a la base
     while distancias[x, y] != 0:
@@ -339,20 +336,24 @@ def calcular_mapa_vuelta(pos_robot, distancias):
 
         for (dx, dy) in coords:
             nx, ny = x + dx, y + dy
-            if not any((x == nx and y == ny) for x, y in camino):
+            if not any((x == nx and y == ny) for x, y in camino) and not any((x == nx and y == ny) for x, y in bloqueo):
                     movimiento_seleccionado = selec_movimiento(nx, ny, movimiento_seleccionado, menor_distancia, distancias)
 
-        # Verificar que siempre hay un movimiento válido
+        # Si no se encontró un movimiento válido por haber pared
         if movimiento_seleccionado is None:
             for (dx, dy) in coords:
                 nx, ny = x + dx, y + dy
-                if not any((x == nx and y == ny) for x, y in camino):
+                if not any((x == nx and y == ny) for x, y in bloqueo):
                     movimiento_seleccionado = selec_movimiento(nx, ny, movimiento_seleccionado, menor_distancia + 1, distancias)
-                
-        # Actualizar la posición del robot al movimiento seleccionado
-        x, y = movimiento_seleccionado
-        print(movimiento_seleccionado)
-        camino.append(movimiento_seleccionado)
+
+        # Si sigue sin haber un movimiento valido, se elimina la última posicion y se busca desde la anterior marcando la celda como una de bloqueo
+        if movimiento_seleccionado is None:
+            bloqueo.append(camino.pop())
+
+        else:
+            # Actualizar la posición del robot al movimiento seleccionado
+            x, y = movimiento_seleccionado
+            camino.append(movimiento_seleccionado)
 
     return camino
 
