@@ -420,6 +420,17 @@ def expandir_frente_de_onda(mapa, base_pos):
                                 
     return distancias
 
+def mapear(leftWheel,rightWheel,posL,posR,sensores_infrarrojos, mapa, pos_robot, mirando, robot, camara):
+    pos_robot, mirando = seguir_paredes(leftWheel,rightWheel,posL,posR,sensores_infrarrojos, mapa, pos_robot, mirando, robot)
+    mapa = guardarMapa(sensores_infrarrojos, mapa, pos_robot, mirando)
+    if detectar_amarillo(camara):
+        (x, y) = pos_robot
+        # Acción a tomar cuando se detecta un objeto amarillo
+        (sumx, sumy) = coords[mirando]
+        mapa[x + sumx, y + sumy] = 2
+
+    return pos_robot, mirando, mapa
+
 def main():
     robot, leftWheel, rightWheel, posL, posR, camara, sensores_infrarrojos, mapa, pos_robot, mirando = inicializar_controladores(TIME_STEP)
     robot.step(TIME_STEP)
@@ -429,36 +440,18 @@ def main():
 
     #Bucle para salir de Base antes del bucle principal
     while robot.step(TIME_STEP) != -1:
-        pos_robot, mirando = seguir_paredes(leftWheel,rightWheel,posL,posR,sensores_infrarrojos, mapa, pos_robot, mirando, robot)
-        mapa = guardarMapa(sensores_infrarrojos, mapa, pos_robot, mirando)
+        if (pos_robot != pos_pasada):  
+            pos_robot, mirando, mapa = mapear(leftWheel,rightWheel,posL,posR,sensores_infrarrojos, mapa, pos_robot, mirando, robot, camara)
+            (x1, y1) = pos_robot
+            if(mapa[x1,y1] == -1):  break
 
-        if detectar_amarillo(camara):
-            # Acción a tomar cuando se detecta un objeto amarillo
-            (x, y) = pos_robot
-            (sumx, sumy) = coords[mirando]
-            mapa[x + sumx, y + sumy] = 2  
-
-        if (pos_robot != pos_pasada):   break
-        else:   pos_pasada = pos_robot
-
-    #Bucle Mapear
-    (x1, y1) = pos_robot
-    while (mapa[x1,y1] != -1):                         
-        robot.step(TIME_STEP)
-        pos_robot, mirando = seguir_paredes(leftWheel,rightWheel,posL,posR,sensores_infrarrojos, mapa, pos_robot, mirando, robot)
-        mapa = guardarMapa(sensores_infrarrojos, mapa, pos_robot, mirando)
-        if detectar_amarillo(camara):
-            (x, y) = pos_robot
-            # Acción a tomar cuando se detecta un objeto amarillo
-            (sumx, sumy) = coords[mirando]
-            mapa[x + sumx, y + sumy] = 2  
-        (x1, y1) = pos_robot  
-             
-    
+        else:   
+            pos_robot, mirando, mapa = mapear(leftWheel,rightWheel,posL,posR,sensores_infrarrojos, mapa, pos_robot, mirando, robot, camara)
+        print("Mapeando...")
+ 
     distancias = expandir_frente_de_onda(mapa, (TAMAÑO_MAPA-1, TAMAÑO_MAPA-1))
     np.savetxt('./mapa.txt', mapa, fmt='%d')
     np.savetxt('./distancias.txt', distancias, fmt='%d')
-    print(distancias)
 
     #Bucle Buscar amarillo
     while (not detectar_amarillo(camara)):
