@@ -16,7 +16,6 @@ last_second = 0
 
 learning_rate = 0.5
 epsilon = 0.3  # Probabilidad de exploración inicial
-sensors_hist = []
 
 ULTRASONIC_SENSORS = [
     "left ultrasonic sensor", "front left ultrasonic sensor",
@@ -104,7 +103,7 @@ def read_sensor_values(infrared_sensors):
     return [sensor.getValue() for sensor in infrared_sensors[8:12]]
 
 def main():
-    global last_second, current_state, learning_rate, sensors_hist, epsilon
+    global last_second, current_state, learning_rate, epsilon
     robot, leftWheel, rightWheel, ultrasonic_sensors, infrared_sensors = init_devices()
     leftWheel.setVelocity(MAX_SPEED)
     rightWheel.setVelocity(MAX_SPEED)
@@ -121,7 +120,6 @@ def main():
             rightWheel.setVelocity(speed_offset - speed_delta)
         else:
             current_sensor_values = read_sensor_values(infrared_sensors)
-            sensors_hist.append(current_sensor_values)
             current_state = get_current_state(current_sensor_values)
 
             if random.uniform(0, 1) < epsilon:
