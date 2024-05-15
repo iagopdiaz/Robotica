@@ -15,7 +15,7 @@ current_state = 2
 last_second = 0
 
 learning_rate = 0.5
-epsilon = 0.3  # Probabilidad de exploración inicial
+epsilon = 0.25
 
 ULTRASONIC_SENSORS = [
     "left ultrasonic sensor", "front left ultrasonic sensor",
@@ -82,9 +82,9 @@ def check_refuerzo(prev_sensor_values, new_sensor_values):
         elif prev_sensor_values[i] > 750 and new_sensor_values[i] < 500:
             refuerzo += 1  # Recompensa por cambiar de blanco a negro
         elif prev_sensor_values[i] < 500 and new_sensor_values[i] < 500:
-            refuerzo += 0.5  # Recompensa por mantenerse en negro
+            refuerzo += 1  # Recompensa por mantenerse en negro
         elif prev_sensor_values[i] > 750 and new_sensor_values[i] > 750:
-            refuerzo -= 0.5  # Penalización por mantenerse en blanco
+            refuerzo -= 1  # Penalización por mantenerse en blanco
 
     return refuerzo
 
@@ -103,7 +103,7 @@ def read_sensor_values(infrared_sensors):
     return [sensor.getValue() for sensor in infrared_sensors[8:12]]
 
 def main():
-    global last_second, current_state, learning_rate, epsilon
+    global last_second, current_state, learning_rate, epsilon, epsilon_min, epsilon_decay
     robot, leftWheel, rightWheel, ultrasonic_sensors, infrared_sensors = init_devices()
     leftWheel.setVelocity(MAX_SPEED)
     rightWheel.setVelocity(MAX_SPEED)
@@ -135,7 +135,6 @@ def main():
 
             refuerzo = check_refuerzo(current_sensor_values, new_sensor_values)
             learning_rate = update_refuerzo(refuerzo, action, current_state, new_state)
-               
 
 if __name__ == "__main__":
     main()
